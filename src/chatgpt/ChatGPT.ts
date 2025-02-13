@@ -9,6 +9,10 @@ interface ChatGPTEventsTypeMap {
     "disconnected": () => void;
     "login_page": () => void;
     "browser_destroyed": () => void;
+    "hide": () => void;
+    "show": () => void;
+    "initialized": () => void;
+    "options_changed": (oldOptions: ChatGPTOptions, newOptions: ChatGPTOptions) => void;
 }
 
 export default class ChatGPT extends EventEmitter {
@@ -54,7 +58,8 @@ export default class ChatGPT extends EventEmitter {
         if (!this.browser) {
 
             const options: LaunchOptions = {
-                headless: process.env.NODE_ENV !== "development"
+                headless: process.env.NODE_ENV !== "development",
+                ...this.options?.puppeteer
             };
 
             if (this.options?.puppeteer) {
@@ -90,8 +95,9 @@ export default class ChatGPT extends EventEmitter {
         });
 
         // register the navigation handlers
-        this.registerPaginationHandler();
-        this.loginStateChecker();
+        await this.registerPaginationHandler();
+        await this.loginStateChecker();
+        this.emit("initialized");
     }
 
     /**
@@ -244,6 +250,67 @@ export default class ChatGPT extends EventEmitter {
     async destroy() {
         const { browser } = this.getInitializedData();
         await browser.close();
+        this.browser = null;
+        this.page = null;
         this.emit("browser_destroyed");
+    }
+
+    /**
+     * get the current ChatGPTOptions for this instance
+     */
+    get chatGPTOptions() {
+        return this.options || {};
+    }
+
+
+    /**
+     * change the options of ChatGPT instance
+     * - `note` it will destroy the window and re call initialize method
+     * @param {ChatGPTOptions} options 
+     */
+    async setOptions(options: ChatGPTOptions) {
+        let event: keyof ChatGPTEventsTypeMap | null = null;
+        const oldOptions = this.options || {};
+
+        // check if there is `hide` or `show` operations
+        if (options.puppeteer?.headless !== undefined && this.options?.puppeteer?.headless !== undefined) {
+            // if `hide` operation
+            if (options.puppeteer.headless && !this.options.puppeteer.headless) {
+                event = "hide"
+            }
+            // if `show` operation
+            else if (this.options.puppeteer.headless && !options.puppeteer.headless) {
+                event = "show";
+            }
+        }
+
+        this.options = options;
+        await this.destroy();
+        await this.initialize();
+
+        if (event) this.emit(event);
+        this.emit("options_changed", oldOptions, options);
+    }
+
+    /**
+     * show the browser window of the chatGPT instance
+     * - `note` it will destroy the window and re call initialize method
+     */
+    async show() {
+        this.options = { ...this.options, puppeteer: { ...this.options?.puppeteer, headless: false } };
+        await this.destroy();
+        await this.initialize();
+        this.emit("show");
+    }
+
+    /**
+     * hide the browser window of the chatGPT instance
+     * - `note` it will destroy the window and re call initialize method
+     */
+    async hide() {
+        this.options = { ...this.options, puppeteer: { ...this.options?.puppeteer, headless: true } };
+        await this.destroy();
+        await this.initialize();
+        this.emit("hide");
     }
 }

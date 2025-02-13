@@ -10,16 +10,33 @@ import "./initializer";
         }
     });
 
-    await chatgpt.initialize();
 
     chatgpt.on("ready", () => console.log("user logged in"));
+
     chatgpt.on("login_page", () => {
         console.log("user will login");
     });
 
     chatgpt.on("disconnected", () => {
         console.log("user logged out");
-    })
-    // chatgpt.sendMessage("مرحبا gpt, كيف يمكنك مساعدتي ؟");
+    });
+
+    chatgpt.on("initialized", () => {
+        console.log("chatgpt scraper initialized");
+    });
+
+    chatgpt.on("hide", () => {
+        console.log("scraper browser window hidden");
+    });
+
+    chatgpt.on("show", () => {
+        console.log("scraper browser window show");
+    });
+
+    chatgpt.on("initialized", () => {
+        console.log("scraper is initialized successfully");
+    });
+
+    await chatgpt.initialize();
 })();
 
