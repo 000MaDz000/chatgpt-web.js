@@ -237,4 +237,13 @@ export default class ChatGPT extends EventEmitter {
             sendButton?.click()
         });
     }
+
+    /**
+     * destroy the scraper
+     */
+    async destroy() {
+        const { browser } = this.getInitializedData();
+        await browser.close();
+        this.emit("browser_destroyed");
+    }
 }
