@@ -11,7 +11,13 @@ import "./initializer";
     });
 
 
-    chatgpt.on("ready", () => console.log("user logged in"));
+    chatgpt.on("ready", () => {
+        console.log("scraper is ready => user logged in ");
+    });
+
+    chatgpt.on("location_change", (d) => {
+        console.log(d);
+    });
 
     chatgpt.on("login_page", () => {
         console.log("user will login");
