@@ -4,6 +4,7 @@ export interface ChatGPTOptions {
     puppeteer?: LaunchOptions;
     assistantName?: string
     keyboardWriteDelay?: number;
+    allowScrapperLogs?: boolean;
 }
 
 export interface ChatGPTChatChatOptions {

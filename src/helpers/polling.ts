@@ -5,6 +5,7 @@ interface PollingConfig {
     retries?: number;        // Number of retry attempts (default: 5)
     delay?: number;          // Delay in milliseconds between retries (default: 1000 ms)
     functionName?: string;   // Optional name of the function for logging purposes (default: "UnknownFunction")
+    allowLogs?: boolean;
 }
 
 /**
@@ -22,24 +23,35 @@ export async function polling<T>(
     const {
         retries = 5,
         delay = 1000,
-        functionName = "UnknownFunction"
+        functionName = "UnknownFunction",
+        allowLogs
     } = config;  // Destructuring config with default values
 
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-            console.log(`[${functionName}] Attempt ${attempt}: Trying...`);
+            if (allowLogs) {
+                console.log(`[${functionName}] Attempt ${attempt}: Trying...`);
+            }
             const result = await callback();
-            console.log(`[${functionName}] Success on attempt ${attempt}`);
+            if (allowLogs) {
+                console.log(`[${functionName}] Success on attempt ${attempt}`);
+            }
             return result;
         }
         catch (error: any) {
-            console.error(`[${functionName}] Attempt ${attempt} failed:`, error);
+            if (allowLogs) {
+                console.error(`[${functionName}] Attempt ${attempt} failed:`, error);
+            }
             if (attempt < retries) {
-                console.log(`[${functionName}] Retrying after ${delay}ms...`);
+                if (allowLogs) {
+                    console.log(`[${functionName}] Retrying after ${delay}ms...`);
+                }
                 await new Promise(resolve => setTimeout(resolve, delay));
             } else {
-                console.error(`[${functionName}] All ${retries} attempts failed.`);
-                console.error(`Polling failed in [${functionName}] after ${retries} attempts.`);
+                if (allowLogs) {
+                    console.error(`[${functionName}] All ${retries} attempts failed.`);
+                    console.error(`Polling failed in [${functionName}] after ${retries} attempts.`);
+                }
                 return null;
             }
         }

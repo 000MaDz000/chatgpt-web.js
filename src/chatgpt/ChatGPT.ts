@@ -1,4 +1,4 @@
-import { Browser, Cookie, LaunchOptions, Page } from "puppeteer";
+import { Browser, LaunchOptions, Page } from "puppeteer";
 import puppeteer from "puppeteer-extra";
 import { ChatGPTOptions, ChatGPTPaginationResponse, IChatGPTChat } from "../types/ChatGPT";
 import EventEmitter from "events";
@@ -164,11 +164,12 @@ export default class ChatGPT extends EventEmitter {
                 return true
             }
 
-            throw "failed";
+            throw "user are not logged in";
         }, {
             functionName: "login state checker",
             delay: 1000,
-            retries: 7,
+            retries: 1,
+            allowLogs: this.options?.allowScrapperLogs
         });
 
         if (isLoggedIn && !this.isReady) {
