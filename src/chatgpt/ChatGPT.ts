@@ -141,7 +141,7 @@ export default class ChatGPT extends EventEmitter {
     /**
      * Register Pagination Handler for emit events
      */
-    async registerPaginationHandler() {
+    private async registerPaginationHandler() {
         const { page } = this.getInitializedData();
 
         // register page navigation handler
@@ -190,7 +190,7 @@ export default class ChatGPT extends EventEmitter {
     /**
      * first time login checker
      */
-    async loginStateChecker() {
+    private async loginStateChecker() {
         const { page } = this.getInitializedData();
         await this.waitForLoad();
 

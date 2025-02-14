@@ -3,19 +3,19 @@ import { ChatGPT } from "./index";
 
 (async () => {
     const chatgpt = new ChatGPT({
+        assistantName: "Abbas",
         puppeteer: {
             "userDataDir": join(process.cwd(), ".webdata"),
+            headless: false,
         },
-        assistantName: "Abbas"
     });
 
 
     chatgpt.on("ready", async () => {
         console.log("scraper is ready => user logged in ");
         await chatgpt.selectTemporaryChat();
-        chatgpt.generate("hello, who are you and what you want ?").then(response => {
-            console.log(response);
-        });
+        const response = await chatgpt.generate("hello, who are you and what you want ?");
+        console.log(response);
     });
 
     chatgpt.on("location_change", (d) => {
