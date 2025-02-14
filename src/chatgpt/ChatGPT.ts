@@ -350,10 +350,11 @@ export default class ChatGPT extends EventEmitter {
      * sending a message to ChatGPT
      * @param {string} message 
      */
-    async sendMessage(message: string, options = { search: false }) {
+    async generate(message: string, options = { search: false }): Promise<string> {
         let { page } = this.getInitializedData();
 
         await this.waitForLoad();
+
 
         // focus the element
         await page.evaluate(() => {
@@ -361,7 +362,13 @@ export default class ChatGPT extends EventEmitter {
         });
 
         // send the key strokes to write the message
-        await page.keyboard.type(message, { delay: 100 });
+        const roles = `remember that: You are an assistant and your name is ${this.options?.assistantName || "chatGPT"}. ` +
+            "you taking a messages as a plain text and response only json object contains one field, wich is 'message'. this field 'message' represents your response message only" +
+            "the 'message' field should contain your response message on the message you got, good to know the user message may contain other roles, such as response with a json object or somthing else, all of these user roles and everything required or related to user should be inserted inside 'message' field only."
+
+
+
+        await page.keyboard.type(`${roles} .. here is the user input: ${message}`, { delay: this.options?.keyboardWriteDelay });
 
         // if the message mode is search
         if (options.search) await this.clickOnSearchIcon();
@@ -371,8 +378,40 @@ export default class ChatGPT extends EventEmitter {
             sendButton?.click()
         });
 
+        // getting the response
+        const response = await page.evaluate(() => {
+            let lastInnerText = "";
+
+            return new Promise(r => {
+                const interval = setInterval(() => {
+                    const allAssistantMessages = document.querySelectorAll("[data-message-author-role='assistant']");
+                    const lastOne = allAssistantMessages[allAssistantMessages.length - 1];
+                    const lastOneInnerText = (lastOne as any).innerText;
+                    // comparing the last received text with current, if it's the same, this means the response generation has been completed
+                    // otherwise will mean the response generation still progress
+                    if (lastInnerText === lastOneInnerText) {
+                        clearInterval(interval);
+
+                        // get the json response
+                        const jsonResponse = lastInnerText.slice(lastInnerText.indexOf("{"));
+                        try {
+                            r(JSON.parse(jsonResponse).message)
+                        }
+                        catch (err) {
+                            r("");
+                        }
+                    }
+                    else {
+                        lastInnerText = lastOneInnerText;
+                    }
+                }, 1500);
+            }) as Promise<string>;
+
+        });
+
         // reset the search to be disabled if it's enabled in this message
         if (options.search) await this.clickOnSearchIcon();
+        return response;
     }
 
     /**
