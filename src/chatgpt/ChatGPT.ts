@@ -58,6 +58,20 @@ export default class ChatGPT extends EventEmitter {
         this.AuthorizationHeaderString = null;
         this.isReady = false;
         this.currentSelectedChatType = null;
+
+        this.on("location_change", (location) => {
+
+            this.loginStateChecker();
+
+            if (location.href.match(this.authPageRegex)) {
+                this.emit("login_page");
+
+                if (this.isReady) {
+                    this.emit("disconnected");
+                    this.isReady = false;
+                }
+            }
+        });
     }
 
     /**
@@ -97,21 +111,6 @@ export default class ChatGPT extends EventEmitter {
 
         // exposing a function for send data from the browser injected code to the application
         await this.page.exposeFunction("sendToNode", (event: keyof ChatGPTEventsTypeMap, ...args: any) => {
-
-            switch (event) {
-                case "ready":
-                    this.isReady = true;
-                    break;
-
-                case "login_page":
-                    if (this.isReady) {
-                        this.isReady = false;
-                        this.emit("disconnected");
-                    }
-
-                    break;
-            }
-
             this.emit(event as any, ...args);
         });
 
@@ -145,97 +144,43 @@ export default class ChatGPT extends EventEmitter {
         const { page } = this.getInitializedData();
 
         // register page navigation handler
-        page.evaluateOnNewDocument((authPageRegex) => {
+        page.evaluateOnNewDocument(() => {
             let w = window as any;
-
-            const isLoginPage = location.href.match(
-                new RegExp(authPageRegex)
-            );
-
-
-            // if this is login page, send the event login page
-            if (Boolean(isLoginPage)) {
-                w.sendToNode("login_page");
-            }
-            else if (location.pathname === "/" && location.href.indexOf("?") === -1) {
-                // create a polling interval for checking if user are logged in or not
-                // if logged in, will stop the polling
-                // the polling is created because the img load maybe late
-
-                let counter: number | undefined = 10;
-                let interval: any = setInterval(() => {
-                    if (!counter || counter <= 0) return clearInterval(interval);
-
-                    // if the user logged in, the img will be found in the document
-                    const isUserLoggedIn = Boolean(document.querySelector("img[alt='User']")) || Boolean(document.querySelector("[class='group/sidebar']"));
-
-                    // if logged in, will send ready event and stop the polling
-                    if (isUserLoggedIn) {
-                        w.sendToNode("ready");
-                        clearInterval(interval);
-                        counter = undefined;
-                        return;
-                    }
-
-                    counter--;
-                }, 1000);
-            }
 
             // pass the current location data
             w.sendToNode("location_change", location);
-
-        }, this.authPageRegex);
+        });
     }
 
     /**
      * first time login checker
      */
     private async loginStateChecker() {
-        const { page } = this.getInitializedData();
-        await this.waitForLoad();
 
-        const loginState = await polling(async () => {
+        const isLoggedIn = await polling(async () => {
+            const cookies = await this.getCookies();
 
-
-            // excuting the javascript checker function
-            const isUserLoggedIn = await page.evaluate((authPageRegex: string) => {
-
-                const isLoginPage = Boolean(
-                    location.href.match(
-                        new RegExp(authPageRegex)
-                    )
-                );
-
-                if (isLoginPage) {
-                    return "login_page";
-                }
-
-                const isUserLoggedIn = Boolean(document.querySelector("img[alt='User']")) || Boolean(document.querySelector("[class='group/sidebar']"));
-                return isUserLoggedIn;
-            }, this.authPageRegex);
-
-            // checking the result
-            if (isUserLoggedIn === "login_page") {
-                return false;
+            if (cookies.find(c => c.name === "__Secure-next-auth.session-token" && c.domain.match(this.cookieDomainRegex))) {
+                return true
             }
-            else if (isUserLoggedIn) {
-                return isUserLoggedIn;
-            }
-            else {
-                throw "login state checker failed to know if user logged in"
-            }
-        }, { retries: 7, delay: 1500, functionName: "login state checker" });
 
-        if (loginState) {
+            throw "failed";
+        }, {
+            functionName: "login state checker",
+            delay: 1000,
+            retries: 7,
+        });
+
+        if (isLoggedIn && !this.isReady) {
             this.emit("ready");
             this.isReady = true;
         }
-        else {
-            if (this.isReady) {
-                this.isReady = false;
-                this.emit("disconnected");
-            }
+        else if (!isLoggedIn && this.isReady) {
+            this.emit("disconnected");
+            this.AuthorizationHeaderString = null;
+            this.isReady = false;
         }
+
     }
 
     /**
