@@ -167,7 +167,7 @@ export default class ChatGPT extends EventEmitter {
                     if (!counter || counter <= 0) return clearInterval(interval);
 
                     // if the user logged in, the img will be found in the document
-                    const isUserLoggedIn = Boolean(document.querySelector("img[alt='User']"));
+                    const isUserLoggedIn = Boolean(document.querySelector("img[alt='User']")) || Boolean(document.querySelector("[class='group/sidebar']"));
 
                     // if logged in, will send ready event and stop the polling
                     if (isUserLoggedIn) {
@@ -210,7 +210,7 @@ export default class ChatGPT extends EventEmitter {
                     return "login_page";
                 }
 
-                const isUserLoggedIn = Boolean(document.querySelector("img[alt='User']"));
+                const isUserLoggedIn = Boolean(document.querySelector("img[alt='User']")) || Boolean(document.querySelector("[class='group/sidebar']"));
                 return isUserLoggedIn;
             }, this.authPageRegex);
 

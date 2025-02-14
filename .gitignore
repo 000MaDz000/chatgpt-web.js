@@ -6,3 +6,4 @@ dist
 
 # test
 .webdata
+package-lock.json
