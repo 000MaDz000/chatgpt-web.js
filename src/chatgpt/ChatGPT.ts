@@ -13,19 +13,22 @@ interface ChatGPTEventsTypeMap {
     "show": () => void;
     "initialized": () => void;
     "options_changed": (oldOptions: ChatGPTOptions, newOptions: ChatGPTOptions) => void;
-    "location_change": (newLocation: Location) => void
+    "location_change": (newLocation: Location) => void;
+    "chat_change": (newChatId: string) => void;
 }
 
 export default class ChatGPT extends EventEmitter {
     private browser: Browser | null;
     private page: Page | null;
-    private currentSelectedChatType: null | "temporary";
+    private currentSelectedChatId: null | "temporary" | "new" | string;
     private AuthorizationHeaderString: string | null;
     public isReady: boolean;
     public readonly authPageRegex: string;
+    public readonly chatPageRegex: string;
     public readonly url: string;
     public readonly cookieDomainRegex: string;
     public readonly temporaryChatURL: string;
+    public readonly newChatURL: string;
 
 
 
@@ -53,11 +56,13 @@ export default class ChatGPT extends EventEmitter {
         this.page = null;
         this.url = "https://chatgpt.com";
         this.temporaryChatURL = `${this.url}/?temporary-chat=true`;
+        this.newChatURL = `${this.url}/`;
         this.cookieDomainRegex = "(chatgpt.com)|(\.chatgpt\.com)";
         this.authPageRegex = "(auth.openai.com)|(login.live.com)|(accounts.google.com)|(appleid.apple.com)"; // this will match all login pages of the website
+        this.chatPageRegex = `\/c\/`;
         this.AuthorizationHeaderString = null;
         this.isReady = false;
-        this.currentSelectedChatType = null;
+        this.currentSelectedChatId = null;
 
         this.on("location_change", (location) => {
 
@@ -70,6 +75,20 @@ export default class ChatGPT extends EventEmitter {
                     this.emit("disconnected");
                     this.isReady = false;
                 }
+            }
+            // the chats pages checker
+            else if (location.href.match(this.chatPageRegex)) {
+                const chatId = location.pathname.slice(location.pathname.lastIndexOf("/") + 1);
+                this.currentSelectedChatId = chatId;
+            }
+            else if (location.href === this.temporaryChatURL) {
+                this.currentSelectedChatId = "temporary";
+            }
+            else if (location.pathname === "/" && !location.search) {
+                this.currentSelectedChatId = "new";
+            }
+            else {
+                this.currentSelectedChatId = null;
             }
         });
     }
@@ -263,6 +282,29 @@ export default class ChatGPT extends EventEmitter {
     }
 
     /**
+     * get chat data using the chat ID
+     */
+    async getChat(chatId: string): Promise<IChatGPTChat | null> {
+        await this.waitForLoad();
+        const { page } = this.getInitializedData();
+        const AuthorizationString = await this.getAuthorizationString();
+
+        const endpoint = `/backend-api/conversation/${chatId}`;
+        const headers = {
+            Authorization: AuthorizationString
+        }
+
+        const response = await page.evaluate((headers: Object, endpoint: string) => {
+            return (fetch as any)(endpoint, {
+                method: "GET",
+                headers: headers
+            }).then((res: any) => res.json());
+        }, headers, endpoint).catch(err => null);
+
+        return response;
+    }
+
+    /**
      * click on the search icon because for toggle it's state
      */
     async clickOnSearchIcon() {
@@ -282,14 +324,90 @@ export default class ChatGPT extends EventEmitter {
      * navigate to temporary chat page and save the chat state
      */
     async selectTemporaryChat() {
-        if (this.currentSelectedChatType === "temporary") return;
-        let { page } = this.getInitializedData();
+        if (this.currentSelectedChatId === "temporary") return;
+        await this.waitForLoad();
 
+        const { page } = this.getInitializedData();
+
+        // skip show the dialog of closing temporary chat
+        await page.evaluate(() => {
+            location.search = "";
+        });
+
+        // wait for navigation
+        await page.waitForNavigation();
+
+        // select the temporary chat
         await page.evaluate((tempURL) => {
             location.href = tempURL;
         }, this.temporaryChatURL);
 
-        this.currentSelectedChatType = "temporary";
+        // change the state
+        this.currentSelectedChatId = "temporary";
+    }
+
+
+    /**
+     * select some chat using it's id
+     */
+    async selectChat(chatId: string) {
+        if (this.currentSelectedChatId === chatId) return true; // if this chat is already selected return success state
+        await this.waitForLoad();
+        let { page } = this.getInitializedData();
+
+        // skip show the dialog of closing temporary chat
+        await page.evaluate(() => {
+            location.search = "";
+        });
+
+        // wait for navigation
+        await page.waitForNavigation();
+
+        // change the pathname
+        await page.evaluate((chatId: string) => {
+            location.pathname = `/c/${chatId}`;
+        }, chatId);
+
+        this.currentSelectedChatId = chatId;
+    }
+
+    /**
+     * select a new chat
+     */
+    async selectNewChat() {
+        await this.waitForLoad();
+        let { page } = this.getInitializedData();
+
+        // skip show the dialog of closing temporary chat
+        await page.evaluate(() => {
+            location.search = "";
+        });
+
+        await page.waitForNavigation();
+
+        await page.evaluate((newChatURL: string) => {
+            location.href = newChatURL;
+        }, this.newChatURL);
+
+        this.currentSelectedChatId = "new";
+    }
+
+    getSelectedChat(): { type: "new" | "temporary" | "saved" | null, id: string | null } {
+        let chatType = this.currentSelectedChatId;
+
+        if (chatType !== "new" && chatType !== "temporary") {
+            if (chatType) {
+                chatType = "saved"
+            }
+            else {
+                chatType = null;
+            }
+        }
+
+        return {
+            type: chatType as any,
+            id: this.currentSelectedChatId
+        }
     }
 
     /**

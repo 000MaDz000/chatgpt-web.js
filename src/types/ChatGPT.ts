@@ -12,15 +12,54 @@ export interface ChatGPTChatChatOptions {
     chatId?: string;
 }
 
+export interface ChatGPTMessageAuthor {
+    role: "assistant" | "user";
+    name: string | null;
+    metadata: {}; // unknown yet
+}
 
+export interface MessageMetaData {
+    message_type: null,
+    model_slug: string,
+    default_model_slug: 'auto' | string,
+    parent_id: string,
+    request_id: string,
+    timestamp_: 'absolute' | "unknown",
+    model_switcher_deny: []
+
+}
+
+export interface ChatGPTMessageType {
+    id: string;
+    author: ChatGPTMessageAuthor[];
+    create_time: number; // milliseconds
+    update_time: number | null;
+    content: any[];
+    status: "finished_successfully" | unknown;
+    end_turn: boolean;
+    weight: number;
+    metadata: MessageMetaData | MessageMetaData[];
+    recipient: "all" | unknown;
+    channel: unknown | null;
+}
+
+export interface ChatGPTMappingType {
+    [key: string]: {
+        id: string;
+        message: ChatGPTMessageType;
+        parent: string;
+        children?: string[];
+    }
+}
 /**
  * The Request Responses
  */
-
 export interface IChatGPTChat {
     id: string;
     async_status: null | boolean;
     conversation_origin: null | string;
+    conversation_id: string | null;
+    plugin_ids: string[] | null;
     conversation_template_id: null | string;
     create_time: string;
     current_node: unknown
@@ -28,7 +67,7 @@ export interface IChatGPTChat {
     is_archived: boolean;
     is_starred: boolean
     is_unread: boolean
-    mapping: unknown
+    mapping: ChatGPTMappingType;
     safe_urls: unknown[]
     snippet: null | unknown
     title: string;

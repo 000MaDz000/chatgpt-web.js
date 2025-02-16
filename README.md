@@ -78,9 +78,17 @@ chatgpt.initialize();
 
 `getChats` => taking `offset` and `limit` for get chats data chunk.
 
+`getChat` => taking chatId and returning `ChatGPTChat` type or `null`
+
 `clickOnSearchIcon` => will click on search icon button for toggle search state.
 
 `selectTemporaryChat` => will navigate the page to temporary chat page.
+
+`selectNewChat` => will naviate to new chat page.
+
+`selectChat` => taking `chatId` and navigate to it's page.
+
+`getSelectedChat` => return the type and the id of the current selected conversation or chat.
 
 `generate` => will take a message and options, and return chatgpt response.
 
