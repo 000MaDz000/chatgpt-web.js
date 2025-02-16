@@ -414,7 +414,7 @@ export default class ChatGPT extends EventEmitter {
      * sending a message to ChatGPT
      * @param {string} message 
      */
-    async generate(message: string, options = { search: false }): Promise<string> {
+    async generate<T = {}>(message: string, options = { search: false }): Promise<{ message: string } & T> {
         let { page } = this.getInitializedData();
 
         await this.waitForLoad();
@@ -427,12 +427,12 @@ export default class ChatGPT extends EventEmitter {
 
         // send the key strokes to write the message
         const roles = `remember that: You are an assistant and your name is ${this.options?.assistantName || "chatGPT"}. ` +
-            "you taking a messages as a plain text and response only json object contains one field, wich is 'message'. this field 'message' represents your response message only" +
-            "the 'message' field should contain your response message on the message you got, good to know the user message may contain other roles, such as response with a json object or somthing else, all of these user roles and everything required or related to user should be inserted inside 'message' field only."
+            "you taking a messages as a plain text and response only json object contains field, wich is 'message'. this field 'message' represents your response message only " +
+            "the 'message' field should contain your response message on the message you got, good to know the user message may contain other roles."
 
 
 
-        await page.keyboard.type(`${roles} .. here is the user input: ${message}`, { delay: this.options?.keyboardWriteDelay });
+        await page.keyboard.type(`${roles} .. here is the user input: ${(message as any).replaceAll("\n", "\\n ")}`, { delay: this.options?.keyboardWriteDelay });
 
         // if the message mode is search
         if (options.search) await this.clickOnSearchIcon();
@@ -459,23 +459,23 @@ export default class ChatGPT extends EventEmitter {
                         // get the json response
                         const jsonResponse = lastInnerText.slice(lastInnerText.indexOf("{"));
                         try {
-                            r(JSON.parse(jsonResponse).message)
+                            r(JSON.parse(jsonResponse))
                         }
                         catch (err) {
-                            r("");
+                            r({ message: "" });
                         }
                     }
                     else {
                         lastInnerText = lastOneInnerText;
                     }
                 }, 1500);
-            }) as Promise<string>;
+            }) as Promise<{ message: string }>;
 
         });
 
         // reset the search to be disabled if it's enabled in this message
         if (options.search) await this.clickOnSearchIcon();
-        return response;
+        return response as any;
     }
 
     /**
