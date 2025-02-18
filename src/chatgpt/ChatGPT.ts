@@ -414,7 +414,7 @@ export default class ChatGPT extends EventEmitter {
      * sending a message to ChatGPT
      * @param {string} message 
      */
-    async generate<T = {}>(message: string, options = { search: false }): Promise<{ message: string } & T> {
+    async generate<T = {}>(message: string, options: { search?: boolean, rules?: string } = { search: false, rules: "" }): Promise<{ message: string, chatId: string } & T> {
         let { page } = this.getInitializedData();
 
         await this.waitForLoad();
@@ -426,13 +426,19 @@ export default class ChatGPT extends EventEmitter {
         });
 
         // send the key strokes to write the message
-        const roles = `remember that: You are an assistant and your name is ${this.options?.assistantName || "chatGPT"}. ` +
-            "you taking a messages as a plain text and response only json object contains field, wich is 'message'. this field 'message' represents your response message only " +
-            "the 'message' field should contain your response message on the message you got, good to know the user message may contain other roles."
+        const rules = `remember that: You are an assistant and your name is ${this.options?.assistantName || "chatGPT"}. ` +
+            (
+                options.rules ? (
+                    `response must be a json, if your response is a text write it in 'message' field in the json;;; ${options.rules}`
+                ) : (
+                    "you taking a messages as a plain text and response only json object contains field, wich is 'message'. this field 'message' represents your response message only " +
+                    "the 'message' field should contain your response message on the message you got, good to know the user message may contain other roles."
+                )
+            )
 
 
 
-        await page.keyboard.type(`${roles} .. here is the user input: ${(message as any).replaceAll("\n", "\\n ")}`, { delay: this.options?.keyboardWriteDelay });
+        await page.keyboard.type(`${rules} .. here is the user input: ${(message as any).replaceAll("\n", "\\n ")}`, { delay: this.options?.keyboardWriteDelay });
 
         // if the message mode is search
         if (options.search) await this.clickOnSearchIcon();
@@ -453,15 +459,23 @@ export default class ChatGPT extends EventEmitter {
                     const lastOneInnerText = (lastOne as any).innerText;
                     // comparing the last received text with current, if it's the same, this means the response generation has been completed
                     // otherwise will mean the response generation still progress
-                    if (lastInnerText === lastOneInnerText) {
+                    if (
+                        lastInnerText === lastOneInnerText && (
+                            !Boolean(document.querySelector("[data-testid=stop-button]")) ||
+                            Boolean(document.querySelector(`[data-testid=composer-speech-button]`)
+                            )
+                        )
+                    ) {
                         clearInterval(interval);
 
                         // get the json response
-                        const jsonResponse = lastInnerText.slice(lastInnerText.indexOf("{"));
+                        const jsonResponse = lastInnerText.slice(lastInnerText.indexOf("{"), lastInnerText.lastIndexOf("}") + 1);
                         try {
                             r(JSON.parse(jsonResponse))
                         }
                         catch (err) {
+                            console.error("error parsing response json", lastInnerText);
+
                             r({ message: "" });
                         }
                     }
@@ -475,7 +489,28 @@ export default class ChatGPT extends EventEmitter {
 
         // reset the search to be disabled if it's enabled in this message
         if (options.search) await this.clickOnSearchIcon();
-        return response as any;
+
+        // check the current chat page again
+        const chatId = await page.evaluate((chatPageRegex: string, temporaryChatURL: string) => {
+            // the chats pages checker
+            if (location.href.match(chatPageRegex)) {
+                const chatId = location.pathname.slice(location.pathname.lastIndexOf("/") + 1);
+                return chatId;
+            }
+            else if (location.href === temporaryChatURL) {
+                return "temporary";
+            }
+            else if (location.pathname === "/" && !location.search) {
+                return "new";
+            }
+            else {
+                return null;
+            }
+        }, this.chatPageRegex, this.temporaryChatURL);
+
+        this.currentSelectedChatId = chatId;
+
+        return { ...response, chatId: chatId as string } as any;
     }
 
     /**
