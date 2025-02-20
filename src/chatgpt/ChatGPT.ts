@@ -3,6 +3,7 @@ import puppeteer from "puppeteer-extra";
 import { ChatGPTOptions, ChatGPTPaginationResponse, IChatGPTChat } from "../types/ChatGPT";
 import EventEmitter from "events";
 import { polling } from "../helpers/polling";
+import { delay } from "../helpers/delay";
 
 interface ChatGPTEventsTypeMap {
     "ready": () => void;
@@ -308,7 +309,7 @@ export default class ChatGPT extends EventEmitter {
      * click on the search icon because for toggle it's state
      */
     async clickOnSearchIcon() {
-        let { page } = this.getInitializedData();
+        const { page } = this.getInitializedData();
 
         // if search
         await page.evaluate(() => {
@@ -318,6 +319,21 @@ export default class ChatGPT extends EventEmitter {
             button.click();
         });
 
+    }
+
+    /**
+     * make all inputs with type file are visible
+     */
+    private async displayFileInputs() {
+        const { page } = this.getInitializedData();
+
+        await page.evaluate(() => {
+            const inputs = document.querySelectorAll("input[type='file']") as NodeListOf<HTMLInputElement>;
+            console.log("inputs displayed:", inputs);
+            inputs.forEach(input => {
+                input.style.display = "block";
+            });
+        });
     }
 
     /**
@@ -414,12 +430,27 @@ export default class ChatGPT extends EventEmitter {
      * sending a message to ChatGPT
      * @param {string} message 
      */
-    async generate<T = {}>(message: string, options: { search?: boolean, rules?: string } = { search: false, rules: "" }): Promise<{ message: string, chatId: string } & T> {
+    async generate<T = {}>(message: string, options: { search?: boolean, rules?: string, uploadFiles?: string[] } = { search: false, rules: "" }): Promise<{ message: string, chatId: string } & T> {
         let { page } = this.getInitializedData();
-
         await this.waitForLoad();
+        if (options.uploadFiles && options.uploadFiles.length > 0) {
+            await delay(4000);
+            try {
+                await this.displayFileInputs();
+                page.click("input[type=file]");
+                const chooser = await page.waitForFileChooser();
+                chooser.accept(options.uploadFiles)
+                console.log("opened file chooser");
+            }
+            catch (err) {
+                console.error("");
+                console.error("cannot upload files because of an error");
+                console.error(err);
+                console.error("");
+            }
+        }
 
-
+        await new Promise(() => { })
         // focus the element
         await page.evaluate(() => {
             document.getElementById("prompt-textarea")?.click();
