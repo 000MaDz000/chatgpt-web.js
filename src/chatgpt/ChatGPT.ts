@@ -408,6 +408,25 @@ export default class ChatGPT extends EventEmitter {
         this.currentSelectedChatId = "new";
     }
 
+    async reloadChatPage(chatID = this.currentSelectedChatId) {
+        if (!chatID) return;
+
+        switch (chatID) {
+            case "temporary":
+                await this.selectNewChat();
+                await this.selectTemporaryChat();
+                break;
+
+            case "new":
+                await this.selectTemporaryChat();
+                await this.selectNewChat();
+            default:
+                await this.selectNewChat();
+                await this.selectChat(chatID);
+                break;
+        }
+    }
+
     getSelectedChat(): { type: "new" | "temporary" | "saved" | null, id: string | null } {
         let chatType = this.currentSelectedChatId;
 
@@ -431,26 +450,9 @@ export default class ChatGPT extends EventEmitter {
      * @param {string} message 
      */
     async generate<T = {}>(message: string, options: { search?: boolean, rules?: string, uploadFiles?: string[] } = { search: false, rules: "" }): Promise<{ message: string, chatId: string } & T> {
-        let { page } = this.getInitializedData();
+        const { page } = this.getInitializedData();
         await this.waitForLoad();
-        if (options.uploadFiles && options.uploadFiles.length > 0) {
-            await delay(4000);
-            try {
-                await this.displayFileInputs();
-                page.click("input[type=file]");
-                const chooser = await page.waitForFileChooser();
-                chooser.accept(options.uploadFiles)
-                console.log("opened file chooser");
-            }
-            catch (err) {
-                console.error("");
-                console.error("cannot upload files because of an error");
-                console.error(err);
-                console.error("");
-            }
-        }
 
-        await new Promise(() => { })
         // focus the element
         await page.evaluate(() => {
             document.getElementById("prompt-textarea")?.click();
@@ -474,9 +476,40 @@ export default class ChatGPT extends EventEmitter {
         // if the message mode is search
         if (options.search) await this.clickOnSearchIcon();
 
+        if (options.uploadFiles && options.uploadFiles.length > 0) {
+            try {
+                await this.displayFileInputs();
+                const [chooser] = await Promise.all([
+                    page.waitForFileChooser(),
+                    page.click("input[type=file]")
+                ]);
+
+                await chooser.accept(options.uploadFiles)
+                console.log("opened file chooser");
+            }
+            catch (err) {
+                console.error("");
+                console.error("cannot upload files because of an error");
+                console.error(err);
+                console.error("");
+            }
+        }
+
+        /**
+         * waiting for the button to be allowed to click
+         * it's will be disabled if there is upload operation
+         */
         await page.evaluate(() => {
-            const sendButton: HTMLButtonElement | null = document.querySelector("[data-testid=send-button]");
-            sendButton?.click()
+            return new Promise(r => {
+                const interval = setInterval(() => {
+                    const sendButton: HTMLButtonElement | null = document.querySelector("[data-testid=send-button]");
+                    if (!sendButton?.disabled) {
+                        sendButton?.click();
+                        clearInterval(interval);
+                        r(null);
+                    }
+                }, 1500);
+            })
         });
 
         // getting the response
@@ -540,6 +573,7 @@ export default class ChatGPT extends EventEmitter {
         }, this.chatPageRegex, this.temporaryChatURL);
 
         this.currentSelectedChatId = chatId;
+
 
         return { ...response, chatId: chatId as string } as any;
     }
