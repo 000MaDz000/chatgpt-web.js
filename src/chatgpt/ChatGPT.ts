@@ -3,7 +3,6 @@ import puppeteer from "puppeteer-extra";
 import { ChatGPTOptions, ChatGPTPaginationResponse, IChatGPTChat } from "../types/ChatGPT";
 import EventEmitter from "events";
 import { polling } from "../helpers/polling";
-import { delay } from "../helpers/delay";
 
 interface ChatGPTEventsTypeMap {
     "ready": () => void;
@@ -18,6 +17,7 @@ interface ChatGPTEventsTypeMap {
     "chat_change": (newChatId: string) => void;
 }
 
+// const taskQueue 
 export default class ChatGPT extends EventEmitter {
     private browser: Browser | null;
     private page: Page | null;
@@ -427,6 +427,12 @@ export default class ChatGPT extends EventEmitter {
         }
     }
 
+    async createChat(): Promise<{ chatId: string }> {
+        await this.selectNewChat();
+        const { chatId } = await this.generate("hi");
+        return { chatId };
+    }
+
     getSelectedChat(): { type: "new" | "temporary" | "saved" | null, id: string | null } {
         let chatType = this.currentSelectedChatId;
 
@@ -449,7 +455,14 @@ export default class ChatGPT extends EventEmitter {
      * sending a message to ChatGPT
      * @param {string} message 
      */
-    async generate<T = {}>(message: string, options: { search?: boolean, rules?: string, uploadFiles?: string[] } = { search: false, rules: "" }): Promise<{ message: string, chatId: string } & T> {
+    async generate<T = {}>(message: string, options: { search?: boolean, rules?: string, uploadFiles?: string[], chatId?: string } = { search: false, rules: "" }): Promise<{ message: string, chatId: string } & T> {
+        if (options.chatId) {
+            const isChatExists = Boolean(await this.getChat(options.chatId));
+            if (isChatExists) {
+                await this.selectChat(options.chatId);
+            }
+        }
+
         const { page } = this.getInitializedData();
         await this.waitForLoad();
 
