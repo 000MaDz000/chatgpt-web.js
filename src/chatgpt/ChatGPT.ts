@@ -130,6 +130,7 @@ export default class ChatGPT extends EventEmitter {
                 }
 
                 if (!this.isReady) {
+                    this.isReady = true;
                     this.emit("ready");
                 }
             }
