@@ -124,9 +124,16 @@ export default class ChatGPT extends EventEmitter {
             const headers = httpRequest.headers();
             const authorizationString = headers.Authorization || headers.authorization;
 
-            if (authorizationString && !this.AuthorizationHeaderString) {
-                this.AuthorizationHeaderString = authorizationString;
+            if (authorizationString) {
+                if (!this.AuthorizationHeaderString) {
+                    this.AuthorizationHeaderString = authorizationString;
+                }
+
+                if (!this.isReady) {
+                    this.emit("ready");
+                }
             }
+
         });
 
         // exposing a function for send data from the browser injected code to the application
