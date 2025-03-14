@@ -1,6 +1,6 @@
 {
     "name": "chatgpt-web.js",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "main": "./dist/index.js",
     "repository": "https://github.com/000MaDz000/chatgpt-web.js.git",
     "scripts": {

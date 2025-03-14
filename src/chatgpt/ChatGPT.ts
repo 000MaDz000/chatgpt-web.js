@@ -538,6 +538,8 @@ export default class ChatGPT extends EventEmitter {
             let lastInnerText = "";
 
             return new Promise(r => {
+                let attemps = 5;
+
                 const interval = setInterval(() => {
                     const allAssistantMessages = document.querySelectorAll("[data-message-author-role='assistant']");
                     const lastOne = allAssistantMessages[allAssistantMessages.length - 1];
@@ -551,17 +553,22 @@ export default class ChatGPT extends EventEmitter {
                             )
                         )
                     ) {
-                        clearInterval(interval);
 
                         // get the json response
                         const jsonResponse = lastInnerText.slice(lastInnerText.indexOf("{"), lastInnerText.lastIndexOf("}") + 1);
                         try {
-                            r(JSON.parse(jsonResponse))
+                            r(JSON.parse(jsonResponse));
+                            clearInterval(interval);
                         }
                         catch (err) {
                             console.error("error parsing response json", lastInnerText);
-
-                            r({ message: "" });
+                            if (attemps > 0) {
+                                attemps--;
+                            }
+                            else {
+                                r({ message: "" });
+                                clearInterval(interval);
+                            }
                         }
                     }
                     else {
